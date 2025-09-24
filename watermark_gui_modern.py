@@ -62,7 +62,9 @@ class ModernPhotoWatermarkGUI:
             'rotation': tk.IntVar(value=0),
             'image_path': tk.StringVar(value=""),
             'image_scale': tk.DoubleVar(value=1.0),
-            'image_opacity': tk.IntVar(value=80)
+            'image_opacity': tk.IntVar(value=80),
+            'output_format': tk.StringVar(value="JPEG"),
+            'jpeg_quality': tk.IntVar(value=95)
         }
         
         # 初始化组件
@@ -465,6 +467,37 @@ class ModernPhotoWatermarkGUI:
         
         ttk.Button(dir_frame, text="浏览", command=self.select_output_directory).pack(side=tk.RIGHT, padx=(5, 0))
         
+        # 输出格式选择
+        format_frame = ttk.Frame(output_frame)
+        format_frame.pack(fill=tk.X, pady=(10, 5))
+        
+        ttk.Label(format_frame, text="输出格式:").pack(side=tk.LEFT)
+        format_combo = ttk.Combobox(format_frame, textvariable=self.watermark_config['output_format'], 
+                                   values=["JPEG", "PNG"], state="readonly", width=10)
+        format_combo.pack(side=tk.LEFT, padx=(10, 20))
+        
+        # JPEG质量设置
+        quality_frame = ttk.Frame(format_frame)
+        quality_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.quality_label = ttk.Label(quality_frame, text="JPEG质量:")
+        self.quality_label.pack(side=tk.LEFT)
+        
+        self.quality_scale = ttk.Scale(quality_frame, from_=10, to=100, orient=tk.HORIZONTAL,
+                                      variable=self.watermark_config['jpeg_quality'])
+        self.quality_scale.pack(side=tk.LEFT, padx=(5, 5), fill=tk.X, expand=True)
+        
+        self.quality_value_label = ttk.Label(quality_frame, text="95")
+        self.quality_value_label.pack(side=tk.LEFT)
+        
+        # 绑定事件
+        format_combo.bind('<<ComboboxSelected>>', self._on_format_change)
+        self.quality_scale.bind('<Motion>', self._on_quality_change)
+        self.quality_scale.bind('<ButtonRelease-1>', self._on_quality_change)
+        
+        # 初始化质量控件状态
+        self._on_format_change()
+        
     def create_action_buttons(self, parent):
         """创建操作按钮"""
         btn_frame = ttk.Frame(parent)
@@ -840,6 +873,10 @@ class ModernPhotoWatermarkGUI:
                 for key, var in self.watermark_config.items():
                     config[key] = var.get()
                 
+                # 添加输出设置
+                config['output_format'] = self.watermark_config['output_format'].get()
+                config['jpeg_quality'] = self.watermark_config['jpeg_quality'].get()
+                
                 # 修复字段名映射问题
                 if 'color' in config:
                     # 将颜色从十六进制转换为RGB元组
@@ -878,12 +915,27 @@ class ModernPhotoWatermarkGUI:
                 # 应用模板设置
                 for key, value in config.items():
                     if key in self.watermark_config:
-                        self.watermark_config[key].set(value)
+                        if key == 'font_color':
+                            # 将RGB元组转换为十六进制颜色
+                            if isinstance(value, (list, tuple)) and len(value) >= 3:
+                                hex_color = f"#{value[0]:02x}{value[1]:02x}{value[2]:02x}"
+                                self.watermark_config['color'].set(hex_color)
+                                self.color_preview.config(bg=hex_color)
+                        elif key in ['output_format', 'jpeg_quality']:
+                            # 处理输出格式设置
+                            self.watermark_config[key].set(value)
+                            if key == 'output_format':
+                                self._on_format_change()
+                            elif key == 'jpeg_quality':
+                                self._on_quality_change()
+                        else:
+                            self.watermark_config[key].set(value)
                     elif key == 'font_color':
                         # 将RGB元组转换为十六进制颜色
                         if isinstance(value, (list, tuple)) and len(value) == 3:
                             hex_color = '#%02x%02x%02x' % tuple(value)
                             self.watermark_config['color'].set(hex_color)
+                            self.color_preview.config(bg=hex_color)
                 
                 # 更新颜色预览
                 self.update_preview()
@@ -967,7 +1019,9 @@ class ModernPhotoWatermarkGUI:
                 
                 # 处理图片
                 input_path = item['path']
-                output_path = Path(self.output_directory.get()) / f"watermarked_{item['name']}"
+                output_format = self.watermark_config['output_format'].get()
+                file_extension = '.jpg' if output_format == 'JPEG' else '.png'
+                output_path = Path(self.output_directory.get()) / f"watermarked_{Path(item['name']).stem}{file_extension}"
                 
                 # 加载图片
                 with Image.open(input_path) as img:
@@ -975,7 +1029,17 @@ class ModernPhotoWatermarkGUI:
                     watermarked_img = self.create_watermark_preview(img)
                     
                     # 保存图片
-                    watermarked_img.save(str(output_path), quality=95)
+                    if output_format == 'JPEG':
+                        # 如果原图有透明通道，转换为RGB
+                        if watermarked_img.mode in ('RGBA', 'LA'):
+                            background = Image.new('RGB', watermarked_img.size, (255, 255, 255))
+                            background.paste(watermarked_img, mask=watermarked_img.split()[-1] if watermarked_img.mode == 'RGBA' else None)
+                            watermarked_img = background
+                        
+                        quality = self.watermark_config['jpeg_quality'].get()
+                        watermarked_img.save(str(output_path), format='JPEG', quality=quality, optimize=True)
+                    else:  # PNG
+                        watermarked_img.save(str(output_path), format='PNG', optimize=True)
                     
                 success_count += 1
                 self.root.after(0, lambda idx=i: self._update_item_status(idx, "完成"))
@@ -1015,6 +1079,23 @@ class ModernPhotoWatermarkGUI:
         else:
             messagebox.showerror("处理失败", "没有成功处理任何图片")
             
+    def _on_format_change(self, event=None):
+        """输出格式改变事件"""
+        format_type = self.watermark_config['output_format'].get()
+        if format_type == "JPEG":
+            self.quality_label.config(state="normal")
+            self.quality_scale.config(state="normal")
+            self.quality_value_label.config(state="normal")
+        else:
+            self.quality_label.config(state="disabled")
+            self.quality_scale.config(state="disabled")
+            self.quality_value_label.config(state="disabled")
+    
+    def _on_quality_change(self, event=None):
+        """JPEG质量改变事件"""
+        quality = int(self.watermark_config['jpeg_quality'].get())
+        self.quality_value_label.config(text=str(quality))
+    
     def on_closing(self):
         """关闭事件"""
         if self.processing:
