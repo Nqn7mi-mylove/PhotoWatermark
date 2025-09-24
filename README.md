@@ -1,265 +1,125 @@
-# PhotoWatermark - 图片水印工具
+# PhotoWatermark 3.0 - 现代图片水印工具
 
-一个功能强大的图片水印添加工具，支持基于EXIF拍摄时间的自动水印、自定义文本水印、图片水印以及模板管理功能。
+一个功能强大的现代化图片水印添加工具，采用全新的现代GUI界面设计，支持拖拽操作、实时预览、模板管理等高级功能。
+
+## 🌟 3.0版本新特性
+
+### 🎨 全新现代GUI界面
+- **现代化设计**: 采用现代UI设计风格，界面美观易用
+- **拖拽支持**: 支持直接拖拽图片文件到界面
+- **实时预览**: 水印效果实时预览，所见即所得
+- **批量处理**: 可视化批量处理多张图片
+- **进度显示**: 处理进度实时显示
+
+### 📁 智能模板管理
+- **模板保存**: 保存常用水印配置为模板
+- **一键加载**: 快速加载已保存的模板
+- **模板删除**: 管理不需要的模板
+- **配置同步**: 模板包含所有水印设置
+
+### 🖼️ 输出格式控制
+- **格式选择**: 支持JPEG和PNG格式输出
+- **质量控制**: JPEG格式支持质量调节(10-100)
+- **透明处理**: 智能处理透明通道
+- **文件命名**: 自动调整输出文件扩展名
 
 ## 功能特性
 
-- ✅ **自动时间水印**: 从图片EXIF信息中提取拍摄时间作为水印
-- ✅ **自定义文本水印**: 支持自定义水印文本内容
-- ✅ **图片水印**: 支持添加图片作为水印（如Logo）
-- ✅ **模板管理**: 保存和管理常用的水印配置
-- ✅ **批量处理**: 支持目录批量处理
+- ✅ **文本水印**: 支持自定义文本内容、字体、大小、颜色
+- ✅ **图片水印**: 支持添加PNG/JPEG图片作为水印
+- ✅ **位置控制**: 9种预设位置 + 自定义偏移
+- ✅ **透明度调节**: 精确控制水印透明度(0-100%)
+- ✅ **旋转角度**: 支持水印旋转(-180°到180°)
+- ✅ **批量处理**: 支持多文件批量添加水印
 - ✅ **多种格式**: 支持JPEG、PNG、TIFF、BMP格式
-- ✅ **灵活配置**: 字体大小、颜色、位置、透明度等可调
-- ✅ **命令行界面**: 完整的命令行操作支持
+- ✅ **模板管理**: 保存和管理常用配置
 
-## 安装要求
+## 系统要求
 
-- Python 3.7+
-- Pillow (PIL)
+- **操作系统**: Windows 10+, macOS 10.14+, Linux
+- **Python**: 3.7+ (如使用源码)
+- **依赖库**: Pillow, tkinterdnd2
 
+## 快速开始
+
+### 方式一：使用可执行文件（推荐）
+1. 下载发布包 `PhotoWatermark_Modern_GUI_3.0.zip`
+2. 解压到任意目录
+3. 双击运行 `watermark-gui-modern`
+
+### 方式二：从源码运行
 ```bash
-pip install Pillow
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行现代GUI
+python watermark_gui_modern.py
 ```
 
-## 使用方法
+## 使用指南
 
-### 1. GUI界面
+### 1. 添加图片
+- **拖拽方式**: 直接将图片文件拖拽到界面
+- **按钮选择**: 点击"选择文件"或"选择文件夹"按钮
+- **支持格式**: JPEG, PNG, TIFF, BMP
 
-#### 交互式命令行界面（推荐）
-```bash
-python watermark_gui_no_display.py
-```
-- ✅ 完全兼容所有系统
-- ✅ 友好的交互式菜单
-- ✅ 功能与GUI版本完全一致
+### 2. 配置水印
+- **文本水印**: 设置文本内容、字体、大小、颜色
+- **图片水印**: 选择水印图片文件，调整缩放和透明度
+- **位置设置**: 选择水印位置和偏移量
+- **旋转角度**: 设置水印旋转角度
 
-#### CustomTkinter现代界面
-```bash
-python watermark_gui.py
-```
-⚠️ 注意：在某些macOS系统上可能存在兼容性问题
+### 3. 输出设置
+- **输出目录**: 选择保存处理后图片的目录
+- **输出格式**: 选择JPEG或PNG格式
+- **JPEG质量**: 调节JPEG压缩质量
 
-#### 标准Tkinter界面
-```bash
-python watermark_gui_tkinter.py
-```
-⚠️ 注意：在某些macOS系统上可能存在兼容性问题
+### 4. 模板管理
+- **保存模板**: 配置完成后保存为模板
+- **加载模板**: 选择已保存的模板快速应用
+- **删除模板**: 删除不需要的模板
 
-### 2. 命令行使用
+### 5. 批量处理
+- 添加多张图片后点击"开始处理"
+- 实时查看处理进度和状态
+- 处理完成后自动显示结果统计
 
-#### 基本用法
+## 技术特性
 
-```bash
-# 处理单个图片（使用EXIF时间）
-python photo_watermark.py input.jpg -o output.jpg
+- **现代架构**: 基于tkinter和tkinterdnd2构建
+- **高性能**: 多线程处理，界面响应流畅
+- **跨平台**: 支持Windows、macOS、Linux
+- **可扩展**: 模块化设计，易于扩展功能
 
-# 处理目录（批量处理）
-python photo_watermark.py /path/to/photos --output-dir /path/to/output
+## 版本历史
 
-# 自定义水印文本
-python photo_watermark.py input.jpg -o output.jpg --text "我的水印"
-```
+### v3.0.0 (2024-01-XX)
+- 🎨 全新现代GUI界面设计
+- 🖱️ 支持拖拽操作
+- 👁️ 实时水印预览
+- 📁 完整模板管理系统
+- 🖼️ 输出格式选择功能
+- ⚡ 性能优化和稳定性提升
 
-#### 高级配置
+### v1.2.0 (2024-09-24)
+- 模板管理系统
+- 图片水印支持
+- 输出格式选择
 
-```bash
-# 设置字体大小、颜色和位置
-python photo_watermark.py input.jpg -o output.jpg \
-    --font-size 40 --color red --position top-left
-
-# 使用RGB颜色值
-python photo_watermark.py input.jpg -o output.jpg \
-    --color "255,128,0" --opacity 70
-
-# 添加图片水印
-python photo_watermark.py input.jpg -o output.jpg \
-    --image-watermark logo.png --opacity 80
-
-# 组合文本和图片水印
-python photo_watermark.py input.jpg -o output.jpg \
-    --text "2024-01-15" --image-watermark logo.png
-
-# 指定输出格式
-python photo_watermark.py input.jpg -o output.png \
-    --format PNG --opacity 90
-```
-
-#### 模板使用
-
-```bash
-# 使用保存的模板
-python photo_watermark.py input.jpg -o output.jpg --template "默认水印"
-
-# 管理模板
-python template_manager.py save "我的模板" \
-    --font-size 35 --color blue --position center --opacity 85
-
-python template_manager.py list
-python template_manager.py delete "我的模板"
-```
-
-### 支持的参数
-
-| 参数 | 说明 | 默认值 | 示例 |
-|------|------|--------|------|
-| `input` | 输入文件或目录 | - | `photo.jpg` |
-| `-o, --output` | 输出文件或目录 | 自动生成 | `output.jpg` |
-| `--text` | 自定义水印文本 | EXIF时间 | `"我的水印"` |
-| `--image-watermark` | 水印图片路径 | - | `logo.png` |
-| `--template` | 使用模板 | - | `"默认水印"` |
-| `--font-size` | 字体大小 | 30 | `40` |
-| `--color` | 字体颜色 | white | `red`, `"255,0,0"` |
-| `--position` | 水印位置 | bottom-right | `top-left` |
-| `--opacity` | 透明度(0-100) | 80 | `70` |
-| `--format` | 输出格式 | JPEG | `PNG` |
-| `--quality` | JPEG质量(1-100) | 95 | `85` |
-
-### 支持的位置
-
-```
-top-left      top-center      top-right
-center-left   center          center-right
-bottom-left   bottom-center   bottom-right
-```
-
-### 支持的颜色
-
-- **颜色名称**: white, black, red, green, blue, yellow, cyan, magenta, gray
-- **RGB格式**: "255,255,255" (用逗号分隔的RGB值)
-
-## 模板管理
-
-### 保存模板
-
-```bash
-python template_manager.py save "模板名称" \
-    --font-size 30 \
-    --color white \
-    --position bottom-right \
-    --opacity 80 \
-    --format JPEG \
-    --description "模板描述"
-```
-
-### 管理模板
-
-```bash
-# 列出所有模板
-python template_manager.py list
-
-# 删除模板
-python template_manager.py delete "模板名称"
-
-# 导出模板
-python template_manager.py export templates_backup.json
-
-# 导入模板
-python template_manager.py import templates_backup.json
-```
-
-## 文件结构
-
-```
-PhotoWatermark/
-├── photo_watermark.py      # 主程序
-├── template_manager.py     # 模板管理器
-├── watermark_gui.py        # GUI界面（需要customtkinter）
-├── watermark_gui_simple.py # 简化GUI界面
-├── main.py                 # 程序入口
-├── requirements.txt        # 依赖列表
-└── README.md              # 说明文档
-```
-
-## 示例
-
-### 1. 基本水印添加
-
-```bash
-# 为单张图片添加基于EXIF时间的水印
-python photo_watermark.py vacation.jpg -o vacation_watermarked.jpg
-```
-
-### 2. 批量处理
-
-```bash
-# 批量处理整个目录
-python photo_watermark.py photos/ --output-dir watermarked_photos/
-```
-
-### 3. 自定义样式
-
-```bash
-# 红色大字体水印在顶部中央
-python photo_watermark.py photo.jpg -o output.jpg \
-    --text "版权所有" --font-size 50 --color red --position top-center
-```
-
-### 4. 添加Logo水印
-
-```bash
-# 在右下角添加半透明Logo
-python photo_watermark.py photo.jpg -o output.jpg \
-    --image-watermark company_logo.png --opacity 60 --position bottom-right
-```
-
-### 5. 使用模板
-
-```bash
-# 首先保存一个模板
-python template_manager.py save "公司标准" \
-    --font-size 25 --color "0,0,0" --position bottom-left --opacity 75
-
-# 使用模板处理图片
-python photo_watermark.py photo.jpg -o output.jpg --template "公司标准"
-```
-
-## 注意事项
-
-1. **EXIF信息**: 如果图片没有EXIF拍摄时间信息，将使用文件修改时间
-2. **字体支持**: 程序会自动寻找系统字体，如果找不到会使用默认字体
-3. **透明度**: PNG格式支持完整透明度，JPEG格式会转换为RGB
-4. **性能**: 批量处理大量图片时建议使用较低的JPEG质量以提高速度
-5. **GUI兼容性**: 
-   - CustomTkinter GUI在某些macOS版本上可能存在兼容性问题
-   - 如遇到GUI启动问题，请使用命令行版本或标准Tkinter版本
-   - 标准Tkinter版本: `python watermark_gui_tkinter.py`
-
-## 故障排除
-
-### 常见问题
-
-1. **字体显示问题**: 确保系统有合适的字体文件
-2. **EXIF读取失败**: 某些图片格式可能不包含EXIF信息
-3. **内存不足**: 处理大图片时可能需要更多内存
-
-### 错误代码
-
-- 退出码 0: 成功
-- 退出码 1: 处理失败或文件不存在
-- 退出码 2: 参数错误
+### v1.1.0 (2024-09-18)
+- 图片水印功能
+- 透明度控制
 
 ## 许可证
 
-本项目采用MIT许可证。
+MIT License - 详见 [LICENSE](LICENSE) 文件
 
-## 贡献
+## 支持
 
-欢迎提交Issue和Pull Request来改进这个项目。
+如有问题或建议，请通过以下方式联系：
+- 提交Issue到项目仓库
+- 发送邮件反馈
 
-## 更新日志
+---
 
-### v1.0.0
-- 基本水印功能
-- EXIF时间提取
-- 命令行界面
-
-### v1.1.0
-- 添加图片水印支持
-- 透明度控制
-- 输出格式选择
-
-### v1.2.0
-- 模板管理功能
-- 批量处理优化
-- GUI界面（实验性）
+**PhotoWatermark 3.0** - 让水印添加变得简单而专业！

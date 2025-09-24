@@ -24,23 +24,16 @@ def main():
     
     # 如果没有参数或指定了GUI模式，启动GUI
     if not args.input or args.gui:
-        print("启动图形界面模式...")
+        print("启动现代化图形界面...")
         try:
-            # 尝试导入完整GUI
-            from watermark_gui import PhotoWatermarkGUI
-            app = PhotoWatermarkGUI()
+            # 导入现代GUI
+            from watermark_gui_modern import ModernPhotoWatermarkGUI
+            app = ModernPhotoWatermarkGUI()
             app.run()
         except ImportError as e:
-            print(f"完整GUI导入失败: {e}")
-            print("尝试启动简化版GUI...")
-            try:
-                from watermark_gui_simple import SimpleWatermarkGUI
-                app = SimpleWatermarkGUI()
-                app.run()
-            except ImportError as e2:
-                print(f"简化GUI导入失败: {e2}")
-                print("请确保所有依赖已正确安装")
-                return 1
+            print(f"现代GUI导入失败: {e}")
+            print("请确保所有依赖已正确安装")
+            return 1
         except Exception as e:
             print(f"GUI启动失败: {e}")
             return 1
@@ -48,13 +41,14 @@ def main():
         # 命令行模式
         print("启动命令行模式...")
         try:
-            from photo_watermark import PhotoWatermark
+            from photo_watermark import PhotoWatermark, parse_color
             
             # 创建水印处理器
             watermark = PhotoWatermark(
                 font_size=args.font_size,
-                color=args.color,
-                position=args.position
+                font_color=parse_color(args.color),
+                position=args.position,
+                opacity=args.opacity
             )
             
             # 处理图片

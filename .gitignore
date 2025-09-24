@@ -46,11 +46,8 @@ ehthumbs.db
 Thumbs.db
 
 # Release packages and distributions
-PhotoWatermark_Compatible_Release/
-PhotoWatermark_Compatible_Release_v1.0.zip
-PhotoWatermark_Modern_GUI_arm64/
-PhotoWatermark_Modern_GUI_v2.0.zip
-PhotoWatermark_Distribution/
+PhotoWatermark_Modern_GUI_*/
+*.zip
 
 # Build artifacts
 *.app/
