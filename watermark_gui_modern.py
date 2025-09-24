@@ -840,13 +840,17 @@ class ModernPhotoWatermarkGUI:
                 for key, var in self.watermark_config.items():
                     config[key] = var.get()
                     
-                # 保存模板
-                self.template_manager.save_template(name, "用户自定义模板", config)
-                self.update_template_list()
-                messagebox.showinfo("成功", f"模板 '{name}' 保存成功！")
+                # 保存模板 - 修正参数顺序
+                success = self.template_manager.save_template(name, config, "用户自定义模板", overwrite=True)
+                if success:
+                    self.update_template_list()
+                    messagebox.showinfo("成功", f"模板 '{name}' 保存成功！")
+                else:
+                    messagebox.showerror("错误", f"保存模板 '{name}' 失败")
                 
             except Exception as e:
                 messagebox.showerror("错误", f"保存模板失败: {e}")
+                logger.error(f"Save template error: {e}")
                 
     def load_template(self):
         """加载模板"""
@@ -858,10 +862,9 @@ class ModernPhotoWatermarkGUI:
         template_name = self.template_listbox.get(selection[0])
         
         try:
-            template = self.template_manager.load_template(template_name)
-            if template:
-                config = template.config
-                
+            # load_template返回config字典，不是template对象
+            config = self.template_manager.load_template(template_name)
+            if config:
                 # 应用模板设置
                 for key, value in config.items():
                     if key in self.watermark_config:
@@ -873,9 +876,12 @@ class ModernPhotoWatermarkGUI:
                     
                 self.on_settings_change()
                 messagebox.showinfo("成功", f"模板 '{template_name}' 加载成功！")
+            else:
+                messagebox.showerror("错误", f"模板 '{template_name}' 不存在或加载失败")
                 
         except Exception as e:
             messagebox.showerror("错误", f"加载模板失败: {e}")
+            logger.error(f"Load template error: {e}")
             
     def delete_template(self):
         """删除模板"""
