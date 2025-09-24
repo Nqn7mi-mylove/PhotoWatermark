@@ -24,7 +24,29 @@ pip install Pillow
 
 ## 使用方法
 
-### 命令行使用
+### 1. GUI界面
+
+#### 交互式命令行界面（推荐）
+```bash
+python watermark_gui_no_display.py
+```
+- ✅ 完全兼容所有系统
+- ✅ 友好的交互式菜单
+- ✅ 功能与GUI版本完全一致
+
+#### CustomTkinter现代界面
+```bash
+python watermark_gui.py
+```
+⚠️ 注意：在某些macOS系统上可能存在兼容性问题
+
+#### 标准Tkinter界面
+```bash
+python watermark_gui_tkinter.py
+```
+⚠️ 注意：在某些macOS系统上可能存在兼容性问题
+
+### 2. 命令行使用
 
 #### 基本用法
 
