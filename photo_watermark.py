@@ -18,6 +18,14 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# 导入模板管理器
+try:
+    from template_manager import TemplateManager
+    TEMPLATE_SUPPORT = True
+except ImportError:
+    TEMPLATE_SUPPORT = False
+    logger.warning("模板管理功能不可用")
+
 
 class PhotoWatermark:
     """图片水印处理类"""
@@ -38,7 +46,8 @@ class PhotoWatermark:
         'bottom-right': 'bottom_right'
     }
     
-    def __init__(self, font_size=30, font_color=(255, 255, 255), position='bottom-right'):
+    def __init__(self, font_size=30, font_color=(255, 255, 255), position='bottom-right', 
+                 opacity=80, output_format='JPEG', jpeg_quality=95):
         """
         初始化水印处理器
         
@@ -46,10 +55,46 @@ class PhotoWatermark:
             font_size (int): 字体大小
             font_color (tuple): 字体颜色 RGB
             position (str): 水印位置
+            opacity (int): 透明度 (0-100)
+            output_format (str): 输出格式 ('JPEG' 或 'PNG')
+            jpeg_quality (int): JPEG质量 (1-100)
         """
         self.font_size = font_size
         self.font_color = font_color
         self.position = position
+        self.opacity = opacity
+        self.output_format = output_format
+        self.jpeg_quality = jpeg_quality
+    
+    @classmethod
+    def from_template(cls, template_name):
+        """
+        从模板创建水印处理器
+        
+        Args:
+            template_name (str): 模板名称
+            
+        Returns:
+            PhotoWatermark: 水印处理器实例，如果模板不存在返回None
+        """
+        if not TEMPLATE_SUPPORT:
+            logger.error("模板功能不可用")
+            return None
+        
+        manager = TemplateManager()
+        config = manager.load_template(template_name)
+        
+        if config is None:
+            return None
+        
+        return cls(
+            font_size=config.get('font_size', 30),
+            font_color=config.get('font_color', (255, 255, 255)),
+            position=config.get('position', 'bottom-right'),
+            opacity=config.get('opacity', 80),
+            output_format=config.get('output_format', 'JPEG'),
+            jpeg_quality=config.get('jpeg_quality', 95)
+        )
         
     def get_exif_datetime(self, image_path):
         """
@@ -119,7 +164,120 @@ class PhotoWatermark:
         return position_coords.get(self.POSITION_MAP.get(position, 'bottom_right'), 
                                  position_coords['bottom_right'])
     
-    def add_watermark(self, image_path, output_path, watermark_text):
+    def add_text_watermark(self, image, watermark_text):
+        """
+        为图片添加文本水印
+        
+        Args:
+            image (PIL.Image): 图片对象
+            watermark_text (str): 水印文本
+            
+        Returns:
+            PIL.Image: 添加水印后的图片
+        """
+        # 转换为RGBA模式以支持透明度
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        
+        # 创建透明图层用于绘制水印
+        watermark_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(watermark_layer)
+        
+        # 尝试加载字体
+        try:
+            # 在macOS上尝试使用系统字体
+            font_paths = [
+                '/System/Library/Fonts/Arial.ttf',
+                '/System/Library/Fonts/Helvetica.ttc',
+                '/Library/Fonts/Arial.ttf'
+            ]
+            
+            font = None
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    font = ImageFont.truetype(font_path, self.font_size)
+                    break
+            
+            if font is None:
+                font = ImageFont.load_default()
+                logger.warning("使用默认字体")
+                
+        except Exception as e:
+            font = ImageFont.load_default()
+            logger.warning(f"加载字体失败，使用默认字体: {e}")
+        
+        # 获取文本尺寸
+        bbox = draw.textbbox((0, 0), watermark_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # 计算文本位置
+        x, y = self.calculate_text_position(
+            image.size, 
+            (text_width, text_height), 
+            self.position
+        )
+        
+        # 计算透明度
+        alpha = int(255 * self.opacity / 100)
+        
+        # 添加半透明背景
+        background_color = (0, 0, 0, alpha // 2)  # 半透明黑色背景
+        padding = 10
+        draw.rectangle([
+            x - padding, y - padding,
+            x + text_width + padding, y + text_height + padding
+        ], fill=background_color)
+        
+        # 绘制文本
+        draw.text((x, y), watermark_text, font=font, fill=(*self.font_color, alpha))
+        
+        # 合并图层
+        watermarked = Image.alpha_composite(image, watermark_layer)
+        return watermarked
+    
+    def add_image_watermark(self, image, watermark_image_path, scale=0.2):
+        """
+        为图片添加图片水印
+        
+        Args:
+            image (PIL.Image): 原图片对象
+            watermark_image_path (str): 水印图片路径
+            scale (float): 水印缩放比例
+            
+        Returns:
+            PIL.Image: 添加水印后的图片
+        """
+        try:
+            with Image.open(watermark_image_path) as watermark_img:
+                # 转换为RGBA模式以支持透明度
+                if image.mode != 'RGBA':
+                    image = image.convert('RGBA')
+                
+                if watermark_img.mode != 'RGBA':
+                    watermark_img = watermark_img.convert('RGBA')
+                
+                # 缩放水印图片
+                wm_width = int(watermark_img.width * scale)
+                wm_height = int(watermark_img.height * scale)
+                watermark_img = watermark_img.resize((wm_width, wm_height), Image.Resampling.LANCZOS)
+                
+                # 设置透明度
+                alpha = int(255 * self.opacity / 100)
+                watermark_img.putalpha(alpha)
+                
+                # 计算位置
+                x, y = self.calculate_text_position(image.size, (wm_width, wm_height), self.position)
+                
+                # 粘贴水印
+                image.paste(watermark_img, (x, y), watermark_img)
+                
+        except Exception as e:
+            logger.error(f"添加图片水印失败: {e}")
+        
+        return image
+    
+    def add_watermark(self, image_path, output_path, watermark_text=None, watermark_image_path=None):
         """
         为图片添加水印
         
@@ -127,75 +285,25 @@ class PhotoWatermark:
             image_path (str): 输入图片路径
             output_path (str): 输出图片路径
             watermark_text (str): 水印文本
+            watermark_image_path (str): 水印图片路径
             
         Returns:
             bool: 是否成功
         """
         try:
             with Image.open(image_path) as image:
-                # 转换为RGBA模式以支持透明度
-                if image.mode != 'RGBA':
-                    image = image.convert('RGBA')
+                watermarked = image.copy()
                 
-                # 创建透明图层用于绘制水印
-                watermark_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
-                draw = ImageDraw.Draw(watermark_layer)
+                # 添加文本水印
+                if watermark_text:
+                    watermarked = self.add_text_watermark(watermarked, watermark_text)
                 
-                # 尝试加载字体
-                try:
-                    # 在macOS上尝试使用系统字体
-                    font_paths = [
-                        '/System/Library/Fonts/Arial.ttf',
-                        '/System/Library/Fonts/Helvetica.ttc',
-                        '/Library/Fonts/Arial.ttf'
-                    ]
-                    
-                    font = None
-                    for font_path in font_paths:
-                        if os.path.exists(font_path):
-                            font = ImageFont.truetype(font_path, self.font_size)
-                            break
-                    
-                    if font is None:
-                        font = ImageFont.load_default()
-                        logger.warning("使用默认字体")
-                        
-                except Exception as e:
-                    font = ImageFont.load_default()
-                    logger.warning(f"加载字体失败，使用默认字体: {e}")
-                
-                # 获取文本尺寸
-                bbox = draw.textbbox((0, 0), watermark_text, font=font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-                
-                # 计算文本位置
-                x, y = self.calculate_text_position(
-                    image.size, 
-                    (text_width, text_height), 
-                    self.position
-                )
-                
-                # 添加半透明背景
-                background_color = (0, 0, 0, 128)  # 半透明黑色背景
-                padding = 10
-                draw.rectangle([
-                    x - padding, y - padding,
-                    x + text_width + padding, y + text_height + padding
-                ], fill=background_color)
-                
-                # 绘制文本
-                draw.text((x, y), watermark_text, font=font, fill=(*self.font_color, 255))
-                
-                # 合并图层
-                watermarked = Image.alpha_composite(image, watermark_layer)
-                
-                # 如果原图不是RGBA，转换回原格式
-                if Image.open(image_path).mode != 'RGBA':
-                    watermarked = watermarked.convert('RGB')
+                # 添加图片水印
+                if watermark_image_path and os.path.exists(watermark_image_path):
+                    watermarked = self.add_image_watermark(watermarked, watermark_image_path)
                 
                 # 保存图片
-                watermarked.save(output_path, quality=95)
+                self.save_image(watermarked, output_path)
                 logger.info(f"水印添加成功: {output_path}")
                 return True
                 
@@ -203,64 +311,120 @@ class PhotoWatermark:
             logger.error(f"添加水印失败 {image_path}: {e}")
             return False
     
-    def process_directory(self, input_dir):
+    def save_image(self, image, output_path):
         """
-        处理目录中的所有图片
+        保存图片
+        
+        Args:
+            image (PIL.Image): 图片对象
+            output_path (str): 输出路径
+        """
+        # 根据输出格式保存
+        if self.output_format.upper() == 'PNG':
+            # PNG格式保持透明度
+            if image.mode != 'RGBA':
+                image = image.convert('RGBA')
+            image.save(output_path, 'PNG')
+        else:
+            # JPEG格式转换为RGB
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            image.save(output_path, 'JPEG', quality=self.jpeg_quality)
+    
+    def process_image(self, input_path, output_path, custom_text=None, watermark_image_path=None):
+        """
+        处理单个图片
+        
+        Args:
+            input_path (str): 输入图片路径
+            output_path (str): 输出图片路径
+            custom_text (str): 自定义水印文本
+            watermark_image_path (str): 水印图片路径
+            
+        Returns:
+            bool: 是否成功
+        """
+        if not os.path.exists(input_path):
+            logger.error(f"输入文件不存在: {input_path}")
+            return False
+        
+        # 检查文件格式
+        file_ext = Path(input_path).suffix.lower()
+        if file_ext not in self.SUPPORTED_FORMATS:
+            logger.warning(f"不支持的文件格式: {file_ext}")
+            return False
+        
+        # 确定水印文本
+        if custom_text:
+            watermark_text = custom_text
+        else:
+            # 尝试从EXIF获取日期
+            exif_date = self.get_exif_datetime(input_path)
+            if exif_date:
+                watermark_text = exif_date
+            else:
+                # 使用文件修改时间
+                mod_time = datetime.fromtimestamp(os.path.getmtime(input_path))
+                watermark_text = mod_time.strftime("%Y-%m-%d")
+        
+        return self.add_watermark(input_path, output_path, watermark_text, watermark_image_path)
+
+    def process_directory(self, input_dir, output_dir=None, custom_text=None, watermark_image_path=None):
+        """
+        批量处理目录中的图片
         
         Args:
             input_dir (str): 输入目录路径
+            output_dir (str): 输出目录路径，如果为None则在输入目录下创建_watermark子目录
+            custom_text (str): 自定义水印文本
+            watermark_image_path (str): 水印图片路径
             
         Returns:
             tuple: (成功数量, 总数量)
         """
         input_path = Path(input_dir)
         
-        if not input_path.exists():
-            logger.error(f"目录不存在: {input_dir}")
+        if not input_path.exists() or not input_path.is_dir():
+            logger.error(f"输入目录不存在或不是目录: {input_dir}")
             return 0, 0
         
-        if not input_path.is_dir():
-            logger.error(f"路径不是目录: {input_dir}")
-            return 0, 0
+        # 确定输出目录
+        if output_dir:
+            output_path = Path(output_dir)
+        else:
+            output_path = input_path / f"{input_path.name}_watermark"
         
         # 创建输出目录
-        output_dir = input_path / f"{input_path.name}_watermark"
-        output_dir.mkdir(exist_ok=True)
+        output_path.mkdir(exist_ok=True)
+        logger.info(f"输出目录: {output_path}")
         
-        # 查找所有图片文件
+        # 查找所有支持的图片文件
         image_files = []
         for ext in self.SUPPORTED_FORMATS:
             image_files.extend(input_path.glob(f"*{ext}"))
             image_files.extend(input_path.glob(f"*{ext.upper()}"))
         
         if not image_files:
-            logger.warning(f"目录中未找到支持的图片文件: {input_dir}")
+            logger.warning(f"在目录 {input_dir} 中未找到支持的图片文件")
             return 0, 0
         
         logger.info(f"找到 {len(image_files)} 个图片文件")
         
         success_count = 0
-        
         for image_file in image_files:
-            logger.info(f"处理图片: {image_file.name}")
-            
-            # 获取EXIF时间信息
-            date_str = self.get_exif_datetime(str(image_file))
-            
-            if date_str is None:
-                # 如果没有EXIF时间信息，使用文件修改时间
-                mtime = datetime.fromtimestamp(image_file.stat().st_mtime)
-                date_str = mtime.strftime("%Y-%m-%d")
-                logger.info(f"使用文件修改时间: {date_str}")
-            else:
-                logger.info(f"使用EXIF拍摄时间: {date_str}")
-            
-            # 生成输出文件路径
-            output_file = output_dir / image_file.name
-            
-            # 添加水印
-            if self.add_watermark(str(image_file), str(output_file), date_str):
-                success_count += 1
+            try:
+                # 生成输出文件名
+                if self.output_format.upper() == 'PNG':
+                    output_file = output_path / f"{image_file.stem}.png"
+                else:
+                    output_file = output_path / f"{image_file.stem}.jpg"
+                
+                # 处理图片
+                if self.process_image(str(image_file), str(output_file), custom_text, watermark_image_path):
+                    success_count += 1
+                    
+            except Exception as e:
+                logger.error(f"处理文件失败 {image_file}: {e}")
         
         logger.info(f"处理完成: {success_count}/{len(image_files)} 个文件成功")
         return success_count, len(image_files)
@@ -271,15 +435,13 @@ def parse_color(color_str):
     解析颜色字符串
     
     Args:
-        color_str (str): 颜色字符串，支持格式：
-                        - "255,255,255" (RGB)
-                        - "white", "black", "red" 等颜色名称
-    
+        color_str (str): 颜色字符串，可以是颜色名称或RGB格式
+        
     Returns:
-        tuple: RGB颜色元组
+        tuple: RGB颜色值
     """
     # 预定义颜色
-    color_names = {
+    color_map = {
         'white': (255, 255, 255),
         'black': (0, 0, 0),
         'red': (255, 0, 0),
@@ -292,13 +454,11 @@ def parse_color(color_str):
         'grey': (128, 128, 128)
     }
     
-    color_str = color_str.lower().strip()
+    # 检查是否为预定义颜色
+    if color_str.lower() in color_map:
+        return color_map[color_str.lower()]
     
-    # 检查是否是颜色名称
-    if color_str in color_names:
-        return color_names[color_str]
-    
-    # 尝试解析RGB格式
+    # 尝试解析RGB格式 "R,G,B"
     try:
         rgb_values = [int(x.strip()) for x in color_str.split(',')]
         if len(rgb_values) == 3 and all(0 <= x <= 255 for x in rgb_values):
@@ -321,6 +481,9 @@ def main():
   %(prog)s /path/to/photos
   %(prog)s /path/to/photos --font-size 40 --color red --position top-left
   %(prog)s /path/to/photos --font-size 25 --color "255,0,0" --position center
+  %(prog)s input.jpg -o output.jpg --text "My Watermark"
+  %(prog)s input_dir/ --output-dir output_dir/ --format PNG
+  %(prog)s input.jpg -o output.jpg --template "默认水印"
 
 支持的位置:
   top-left, top-center, top-right
@@ -333,38 +496,23 @@ def main():
         """
     )
     
-    parser.add_argument(
-        'directory',
-        help='包含图片的目录路径'
-    )
-    
-    parser.add_argument(
-        '--font-size', '-s',
-        type=int,
-        default=30,
-        help='字体大小 (默认: 30)'
-    )
-    
-    parser.add_argument(
-        '--color', '-c',
-        type=str,
-        default='white',
-        help='字体颜色，支持颜色名称或RGB格式 "R,G,B" (默认: white)'
-    )
-    
-    parser.add_argument(
-        '--position', '-p',
-        type=str,
-        default='bottom-right',
-        choices=list(PhotoWatermark.POSITION_MAP.keys()),
-        help='水印位置 (默认: bottom-right)'
-    )
-    
-    parser.add_argument(
-        '--verbose', '-v',
-        action='store_true',
-        help='显示详细输出'
-    )
+    parser.add_argument('input', help='输入图片文件或目录路径')
+    parser.add_argument('-o', '--output', help='输出文件或目录路径')
+    parser.add_argument('--output-dir', help='输出目录路径（用于批量处理）')
+    parser.add_argument('--text', help='自定义水印文本（覆盖EXIF日期）')
+    parser.add_argument('--image-watermark', help='水印图片路径')
+    parser.add_argument('--template', help='使用保存的水印模板')
+    parser.add_argument('--font-size', '-s', type=int, default=30, help='字体大小 (默认: 30)')
+    parser.add_argument('--color', '-c', default='white', help='字体颜色，支持颜色名称或RGB格式 "R,G,B" (默认: white)')
+    parser.add_argument('--position', '-p', 
+                       choices=['top-left', 'top-center', 'top-right',
+                               'center-left', 'center', 'center-right',
+                               'bottom-left', 'bottom-center', 'bottom-right'],
+                       default='bottom-right', help='水印位置 (默认: bottom-right)')
+    parser.add_argument('--opacity', type=int, default=80, help='透明度 0-100 (默认: 80)')
+    parser.add_argument('--format', choices=['JPEG', 'PNG'], default='JPEG', help='输出格式 (默认: JPEG)')
+    parser.add_argument('--quality', type=int, default=95, help='JPEG质量 1-100 (默认: 95)')
+    parser.add_argument('--verbose', '-v', action='store_true', help='显示详细输出')
     
     args = parser.parse_args()
     
@@ -379,28 +527,62 @@ def main():
     watermark = PhotoWatermark(
         font_size=args.font_size,
         font_color=font_color,
-        position=args.position
+        position=args.position,
+        opacity=args.opacity,
+        output_format=args.format,
+        jpeg_quality=args.quality
     )
     
-    # 处理图片
+    input_path = Path(args.input)
+    
     try:
-        success_count, total_count = watermark.process_directory(args.directory)
-        
-        if total_count == 0:
-            print("未找到可处理的图片文件")
-            sys.exit(1)
-        elif success_count == total_count:
-            print(f"✅ 所有 {total_count} 个图片文件处理成功")
-            sys.exit(0)
+        if input_path.is_file():
+            # 处理单个文件
+            if args.output:
+                output_path = args.output
+            else:
+                # 生成默认输出文件名
+                if args.format == 'PNG':
+                    output_path = input_path.with_suffix('.png').with_name(f"{input_path.stem}_watermark.png")
+                else:
+                    output_path = input_path.with_suffix('.jpg').with_name(f"{input_path.stem}_watermark.jpg")
+            
+            success = watermark.process_image(
+                str(input_path), 
+                str(output_path), 
+                args.text,
+                args.image_watermark
+            )
+            
+            if success:
+                print(f"✅ 处理完成: {output_path}")
+            else:
+                print("❌ 处理失败")
+                sys.exit(1)
+                
+        elif input_path.is_dir():
+            # 处理目录
+            output_dir = args.output_dir or args.output
+            success_count, total_count = watermark.process_directory(
+                str(input_path), 
+                output_dir,
+                args.text,
+                args.image_watermark
+            )
+            
+            print(f"✅ 批量处理完成: {success_count}/{total_count} 个文件成功")
+            
+            if success_count == 0:
+                sys.exit(1)
         else:
-            print(f"⚠️  {success_count}/{total_count} 个图片文件处理成功")
+            print(f"❌ 输入路径不存在: {args.input}")
             sys.exit(1)
             
     except KeyboardInterrupt:
-        print("\n用户中断操作")
-        sys.exit(1)
+        print("\n⚠️  操作被用户中断")
+        sys.exit(0)
     except Exception as e:
-        logger.error(f"程序执行失败: {e}")
+        logger.error(f"程序执行错误: {e}")
         sys.exit(1)
 
 
