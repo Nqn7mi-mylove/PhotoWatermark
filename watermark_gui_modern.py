@@ -839,6 +839,16 @@ class ModernPhotoWatermarkGUI:
                 config = {}
                 for key, var in self.watermark_config.items():
                     config[key] = var.get()
+                
+                # 修复字段名映射问题
+                if 'color' in config:
+                    # 将颜色从十六进制转换为RGB元组
+                    color_hex = config['color']
+                    if color_hex.startswith('#'):
+                        color_hex = color_hex[1:]
+                    rgb = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+                    config['font_color'] = rgb
+                    del config['color']  # 删除原字段
                     
                 # 保存模板 - 修正参数顺序
                 success = self.template_manager.save_template(name, config, "用户自定义模板", overwrite=True)
@@ -869,15 +879,17 @@ class ModernPhotoWatermarkGUI:
                 for key, value in config.items():
                     if key in self.watermark_config:
                         self.watermark_config[key].set(value)
-                        
+                    elif key == 'font_color':
+                        # 将RGB元组转换为十六进制颜色
+                        if isinstance(value, (list, tuple)) and len(value) == 3:
+                            hex_color = '#%02x%02x%02x' % tuple(value)
+                            self.watermark_config['color'].set(hex_color)
+                
                 # 更新颜色预览
-                if 'color' in config:
-                    self.color_preview.config(bg=config['color'])
-                    
-                self.on_settings_change()
+                self.update_preview()
                 messagebox.showinfo("成功", f"模板 '{template_name}' 加载成功！")
             else:
-                messagebox.showerror("错误", f"模板 '{template_name}' 不存在或加载失败")
+                messagebox.showerror("错误", f"加载模板 '{template_name}' 失败")
                 
         except Exception as e:
             messagebox.showerror("错误", f"加载模板失败: {e}")
