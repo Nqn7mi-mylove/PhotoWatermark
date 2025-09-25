@@ -3,7 +3,14 @@
 """
 PhotoWatermark Modern GUI - 现代化拖拽界面版本
 支持拖拽、文件选择器和批量导入的现代化GUI界面
+
+Version: 4.0.0
+Release Date: 2025-01-25
 """
+
+__version__ = "4.0.0"
+__author__ = "PhotoWatermark Team"
+__license__ = "MIT"
 
 import os
 import sys
@@ -37,7 +44,7 @@ class ModernPhotoWatermarkGUI:
     def __init__(self):
         # 初始化TkinterDnD
         self.root = TkinterDnD.Tk()
-        self.root.title("PhotoWatermark - 现代化拖拽界面")
+        self.root.title(f"PhotoWatermark v{__version__} - 现代化拖拽界面")
         self.root.geometry("1200x800")
         self.root.minsize(800, 600)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)

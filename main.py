@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Photo Watermark Tool - 主入口文件
+版本: 4.0
 支持GUI和命令行两种模式
 """
 
