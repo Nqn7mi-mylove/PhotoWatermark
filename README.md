@@ -36,7 +36,7 @@
 
 ## 系统要求
 
-- **操作系统**: Windows 10+, macOS 10.14+, Linux
+- **操作系统**: macOS 10.14+
 - **Python**: 3.7+ (如使用源码)
 - **依赖库**: Pillow, tkinterdnd2
 
@@ -46,15 +46,6 @@
 1. 下载发布包 `PhotoWatermark_Modern_GUI_3.0.zip`
 2. 解压到任意目录
 3. 双击运行 `watermark-gui-modern`
-
-### 方式二：从源码运行
-```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 运行现代GUI
-python watermark_gui_modern.py
-```
 
 ## 使用指南
 
@@ -88,27 +79,7 @@ python watermark_gui_modern.py
 
 - **现代架构**: 基于tkinter和tkinterdnd2构建
 - **高性能**: 多线程处理，界面响应流畅
-- **跨平台**: 支持Windows、macOS、Linux
 - **可扩展**: 模块化设计，易于扩展功能
-
-## 版本历史
-
-### v3.0.0 (2024-01-XX)
-- 🎨 全新现代GUI界面设计
-- 🖱️ 支持拖拽操作
-- 👁️ 实时水印预览
-- 📁 完整模板管理系统
-- 🖼️ 输出格式选择功能
-- ⚡ 性能优化和稳定性提升
-
-### v1.2.0 (2024-09-24)
-- 模板管理系统
-- 图片水印支持
-- 输出格式选择
-
-### v1.1.0 (2024-09-18)
-- 图片水印功能
-- 透明度控制
 
 ## 许可证
 
