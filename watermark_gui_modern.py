@@ -40,6 +40,7 @@ class ModernPhotoWatermarkGUI:
         self.root.title("PhotoWatermark - 现代化拖拽界面")
         self.root.geometry("1200x800")
         self.root.minsize(800, 600)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # 设置图标和样式
         self.setup_styles()
@@ -66,6 +67,15 @@ class ModernPhotoWatermarkGUI:
             'output_format': tk.StringVar(value="JPEG"),
             'jpeg_quality': tk.IntVar(value=95)
         }
+        
+        # 拖拽相关变量
+        self.dragging = False
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.preview_scale = 1.0
+        self.preview_offset_x = 0
+        self.preview_offset_y = 0
+        self.watermark_items = []  # 存储画布上的水印元素
         
         # 初始化组件
         self.photo_watermark = PhotoWatermark()
@@ -314,8 +324,8 @@ class ModernPhotoWatermarkGUI:
         self.watermark_config['opacity'].trace('w', update_opacity_label)
         
         # 布局滚动框架
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
     def create_image_watermark_settings(self, parent):
         """创建图片水印设置"""
@@ -478,7 +488,7 @@ class ModernPhotoWatermarkGUI:
         
         # JPEG质量设置
         quality_frame = ttk.Frame(format_frame)
-        quality_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        quality_frame.pack(side=tk.TOP, pady=(10, 5))
         
         self.quality_label = ttk.Label(quality_frame, text="JPEG质量:")
         self.quality_label.pack(side=tk.LEFT)
@@ -521,6 +531,12 @@ class ModernPhotoWatermarkGUI:
         
         # 绑定鼠标滚轮事件到预览画布
         self.preview_canvas.bind("<MouseWheel>", self.on_mousewheel)
+        
+        # 绑定预览画布的拖拽事件
+        self.preview_canvas.bind("<Button-1>", self.on_preview_click)
+        self.preview_canvas.bind("<B1-Motion>", self.on_preview_drag)
+        self.preview_canvas.bind("<ButtonRelease-1>", self.on_preview_release)
+        self.preview_canvas.bind("<Motion>", self.on_preview_motion)
         
     def on_drop(self, event):
         """处理拖拽事件"""
@@ -671,17 +687,152 @@ class ModernPhotoWatermarkGUI:
                     
                     # 清空画布并显示图片
                     self.preview_canvas.delete("all")
+                    self.watermark_items.clear()  # 清空水印元素列表
+                    
                     x = (canvas_width - preview_img.width) // 2
                     y = (canvas_height - preview_img.height) // 2
-                    self.preview_canvas.create_image(x, y, anchor=tk.NW, image=self.preview_photo)
+                    
+                    # 显示背景图片
+                    bg_item = self.preview_canvas.create_image(x, y, anchor=tk.NW, image=self.preview_photo)
+                    
+                    # 添加可拖拽的水印指示器
+                    self.add_watermark_indicators(img, preview_img, x, y)
                     
                     # 更新信息
-                    self.preview_info.config(text=f"预览: {item['name']} ({item['size']})")
+                    self.preview_info.config(text=f"预览: {item['name']} ({item['size']}) - 可拖拽水印位置")
                     
         except Exception as e:
             logger.error(f"Failed to update preview: {e}")
             self.preview_info.config(text="预览失败")
             
+    def add_watermark_indicators(self, original_img, preview_img, preview_x, preview_y):
+        """在预览中添加可拖拽的水印指示器"""
+        try:
+            # 计算缩放比例
+            scale_x = preview_img.width / original_img.width
+            scale_y = preview_img.height / original_img.height
+            
+            # 添加文本水印指示器
+            if self.watermark_config['text'].get().strip():
+                text_pos = self.calculate_watermark_preview_position(
+                    original_img.size, 
+                    self.get_text_watermark_size(original_img),
+                    scale_x, scale_y, preview_x, preview_y
+                )
+                if text_pos:
+                    # 创建文本水印指示器（半透明矩形）
+                    x1, y1, x2, y2 = text_pos
+                    text_indicator = self.preview_canvas.create_rectangle(
+                        x1, y1, x2, y2,
+                        outline="red", width=2, stipple="gray50",
+                        fill="red", tags="watermark_text"
+                    )
+                    self.watermark_items.append(text_indicator)
+                    
+                    # 添加文本标签
+                    center_x = (x1 + x2) // 2
+                    center_y = (y1 + y2) // 2
+                    text_label = self.preview_canvas.create_text(
+                        center_x, center_y, 
+                        text="文本水印", fill="white", font=("Arial", 8, "bold"),
+                        tags="watermark_text"
+                    )
+                    self.watermark_items.append(text_label)
+            
+            # 添加图片水印指示器
+            if self.watermark_config['image_path'].get().strip():
+                img_pos = self.calculate_watermark_preview_position(
+                    original_img.size,
+                    self.get_image_watermark_size(original_img),
+                    scale_x, scale_y, preview_x, preview_y
+                )
+                if img_pos:
+                    # 创建图片水印指示器
+                    x1, y1, x2, y2 = img_pos
+                    img_indicator = self.preview_canvas.create_rectangle(
+                        x1, y1, x2, y2,
+                        outline="blue", width=2, stipple="gray50",
+                        fill="blue", tags="watermark_image"
+                    )
+                    self.watermark_items.append(img_indicator)
+                    
+                    # 添加图片标签
+                    center_x = (x1 + x2) // 2
+                    center_y = (y1 + y2) // 2
+                    img_label = self.preview_canvas.create_text(
+                        center_x, center_y,
+                        text="图片水印", fill="white", font=("Arial", 8, "bold"),
+                        tags="watermark_image"
+                    )
+                    self.watermark_items.append(img_label)
+                    
+        except Exception as e:
+            logger.error(f"Failed to add watermark indicators: {e}")
+            
+    def get_text_watermark_size(self, img):
+        """获取文本水印的尺寸"""
+        try:
+            text = self.watermark_config['text'].get()
+            font_size = self.watermark_config['font_size'].get()
+            font_family = self.watermark_config['font_family'].get()
+            
+            # 创建临时绘图对象来计算文本尺寸
+            temp_img = Image.new('RGB', (100, 100))
+            draw = ImageDraw.Draw(temp_img)
+            
+            try:
+                font = ImageFont.truetype(font_family, font_size)
+            except:
+                font = ImageFont.load_default()
+                
+            bbox = draw.textbbox((0, 0), text, font=font)
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            
+            return (width, height)
+        except:
+            return (100, 30)  # 默认尺寸
+            
+    def get_image_watermark_size(self, img):
+        """获取图片水印的尺寸"""
+        try:
+            watermark_path = self.watermark_config['image_path'].get()
+            scale = self.watermark_config['image_scale'].get()
+            
+            if watermark_path and os.path.exists(watermark_path):
+                with Image.open(watermark_path) as wm_img:
+                    width = int(wm_img.width * scale)
+                    height = int(wm_img.height * scale)
+                    return (width, height)
+        except:
+            pass
+        return (50, 50)  # 默认尺寸
+        
+    def calculate_watermark_preview_position(self, img_size, watermark_size, scale_x, scale_y, preview_x, preview_y):
+        """计算水印在预览中的位置"""
+        try:
+            position = self.watermark_config['position'].get()
+            offset_x = self.watermark_config['offset_x'].get()
+            offset_y = self.watermark_config['offset_y'].get()
+            
+            # 计算原图中的水印位置
+            orig_x, orig_y = self.calculate_position(img_size, watermark_size, position, offset_x, offset_y)
+            
+            # 转换到预览坐标
+            preview_wm_x = preview_x + orig_x * scale_x
+            preview_wm_y = preview_y + orig_y * scale_y
+            preview_wm_width = watermark_size[0] * scale_x
+            preview_wm_height = watermark_size[1] * scale_y
+            
+            return (
+                int(preview_wm_x), 
+                int(preview_wm_y),
+                int(preview_wm_x + preview_wm_width),
+                int(preview_wm_y + preview_wm_height)
+            )
+        except:
+            return None
+    
     def create_watermark_preview(self, img):
         """创建带水印的预览图片"""
         # 复制图片
@@ -819,7 +970,7 @@ class ModernPhotoWatermarkGUI:
         }
         
         return positions.get(position, positions['bottom-right'])
-        
+     
     def select_color(self):
         """选择颜色"""
         color = colorchooser.askcolor(title="选择文字颜色")
@@ -862,6 +1013,98 @@ class ModernPhotoWatermarkGUI:
         # 可以用于缩放预览图片
         pass
         
+    def on_preview_click(self, event):
+        """预览画布鼠标点击事件"""
+        if not self.image_items or self.current_image_index >= len(self.image_items):
+            return
+            
+        # 检查是否点击在水印区域
+        clicked_item = self.preview_canvas.find_closest(event.x, event.y)[0]
+        
+        # 检查是否是水印元素
+        if clicked_item in self.watermark_items:
+            self.dragging = True
+            self.drag_start_x = event.x
+            self.drag_start_y = event.y
+            self.preview_canvas.config(cursor="hand2")
+            
+    def on_preview_drag(self, event):
+        """预览画布拖拽事件"""
+        if not self.dragging:
+            return
+            
+        # 计算拖拽距离
+        dx = event.x - self.drag_start_x
+        dy = event.y - self.drag_start_y
+        
+        # 更新水印位置
+        self.update_watermark_position_from_drag(dx, dy)
+        
+        # 更新起始位置
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+        
+        # 实时更新预览
+        self.update_preview()
+        
+    def on_preview_release(self, event):
+        """预览画布鼠标释放事件"""
+        if self.dragging:
+            self.dragging = False
+            self.preview_canvas.config(cursor="")
+            
+    def on_preview_motion(self, event):
+        """预览画布鼠标移动事件"""
+        if not self.dragging:
+            # 检查鼠标是否悬停在水印上
+            closest_item = self.preview_canvas.find_closest(event.x, event.y)[0]
+            if closest_item in self.watermark_items:
+                self.preview_canvas.config(cursor="hand2")
+            else:
+                self.preview_canvas.config(cursor="")
+                
+    def update_watermark_position_from_drag(self, dx, dy):
+        """根据拖拽距离更新水印位置"""
+        if not self.image_items or self.current_image_index >= len(self.image_items):
+            return
+            
+        # 获取画布和图片尺寸
+        canvas_width = self.preview_canvas.winfo_width()
+        canvas_height = self.preview_canvas.winfo_height()
+        
+        if canvas_width <= 1 or canvas_height <= 1:
+            return
+            
+        # 计算相对于原图的偏移量
+        # 这里需要考虑预览图片的缩放比例
+        try:
+            item = self.image_items[self.current_image_index]
+            with Image.open(item['path']) as img:
+                # 计算预览图片的实际尺寸和位置
+                preview_img = img.copy()
+                preview_img.thumbnail((canvas_width - 10, canvas_height - 10), Image.Resampling.LANCZOS)
+                
+                # 计算缩放比例
+                scale_x = img.width / preview_img.width
+                scale_y = img.height / preview_img.height
+                
+                # 转换拖拽距离到原图坐标
+                real_dx = dx * scale_x
+                real_dy = dy * scale_y
+                
+                # 更新偏移量
+                current_x = self.watermark_config['offset_x'].get()
+                current_y = self.watermark_config['offset_y'].get()
+                
+                new_x = max(0, min(img.width, current_x + real_dx))
+                new_y = max(0, min(img.height, current_y + real_dy))
+                
+                self.watermark_config['offset_x'].set(int(new_x))
+                self.watermark_config['offset_y'].set(int(new_y))
+                
+        except Exception as e:
+            logger.error(f"Failed to update watermark position: {e}")
+            
     def save_template(self):
         """保存模板"""
         # 简单的输入对话框
@@ -1071,6 +1314,14 @@ class ModernPhotoWatermarkGUI:
         self.progress.config(value=total_count)
         self.status_label.config(text=f"完成: {success_count}/{total_count}")
         
+        if success_count > 0:
+            message = f"成功处理 {success_count} 张图片"
+            if success_count < total_count:
+                message += f"，{total_count - success_count} 张失败"
+            messagebox.showinfo("处理完成", message)
+        else:
+            messagebox.showerror("处理失败", "没有成功处理任何图片")
+            
         if success_count > 0:
             message = f"成功处理 {success_count} 张图片"
             if success_count < total_count:
