@@ -720,22 +720,24 @@ class ModernPhotoWatermarkGUI:
                     scale_x, scale_y, preview_x, preview_y
                 )
                 if text_pos:
-                    # 创建文本水印指示器（半透明矩形）
+                    # 创建文本水印指示器（半透明边框，不填充）
                     x1, y1, x2, y2 = text_pos
                     text_indicator = self.preview_canvas.create_rectangle(
                         x1, y1, x2, y2,
-                        outline="red", width=2, stipple="gray50",
-                        fill="red", tags="watermark_text"
+                        outline="red", width=2, stipple="gray25",
+                        fill="", tags="watermark_text"
                     )
                     self.watermark_items.append(text_indicator)
                     
-                    # 添加文本标签
-                    center_x = (x1 + x2) // 2
-                    center_y = (y1 + y2) // 2
+                    # 添加小标签在边框外
+                    label_x = x1
+                    label_y = y1 - 12  # 在矩形上方
+                    if label_y < 0:  # 如果上方空间不够，放在下方
+                        label_y = y2 + 12
                     text_label = self.preview_canvas.create_text(
-                        center_x, center_y, 
-                        text="文本水印", fill="white", font=("Arial", 8, "bold"),
-                        tags="watermark_text"
+                        label_x, label_y, 
+                        text="文本", fill="red", font=("Arial", 8, "bold"),
+                        anchor="w", tags="watermark_text"
                     )
                     self.watermark_items.append(text_label)
             
@@ -747,22 +749,24 @@ class ModernPhotoWatermarkGUI:
                     scale_x, scale_y, preview_x, preview_y
                 )
                 if img_pos:
-                    # 创建图片水印指示器
+                    # 创建图片水印指示器（半透明边框，不填充）
                     x1, y1, x2, y2 = img_pos
                     img_indicator = self.preview_canvas.create_rectangle(
                         x1, y1, x2, y2,
-                        outline="blue", width=2, stipple="gray50",
-                        fill="blue", tags="watermark_image"
+                        outline="blue", width=2, stipple="gray25",
+                        fill="", tags="watermark_image"
                     )
                     self.watermark_items.append(img_indicator)
                     
-                    # 添加图片标签
-                    center_x = (x1 + x2) // 2
-                    center_y = (y1 + y2) // 2
+                    # 添加小标签在边框外
+                    label_x = x1
+                    label_y = y1 - 12  # 在矩形上方
+                    if label_y < 0:  # 如果上方空间不够，放在下方
+                        label_y = y2 + 12
                     img_label = self.preview_canvas.create_text(
-                        center_x, center_y,
-                        text="图片水印", fill="white", font=("Arial", 8, "bold"),
-                        tags="watermark_image"
+                        label_x, label_y,
+                        text="图片", fill="blue", font=("Arial", 8, "bold"),
+                        anchor="w", tags="watermark_image"
                     )
                     self.watermark_items.append(img_label)
                     
@@ -1033,14 +1037,14 @@ class ModernPhotoWatermarkGUI:
         if not self.dragging:
             return
             
-        # 计算拖拽距离
+        # 计算本次拖拽的增量距离
         dx = event.x - self.drag_start_x
         dy = event.y - self.drag_start_y
         
-        # 更新水印位置
+        # 更新水印位置（使用增量）
         self.update_watermark_position_from_drag(dx, dy)
         
-        # 更新起始位置
+        # 更新起始位置为当前位置，确保下次计算的是增量
         self.drag_start_x = event.x
         self.drag_start_y = event.y
         
@@ -1057,10 +1061,18 @@ class ModernPhotoWatermarkGUI:
         """预览画布鼠标移动事件"""
         if not self.dragging:
             # 检查鼠标是否悬停在水印上
-            closest_item = self.preview_canvas.find_closest(event.x, event.y)[0]
-            if closest_item in self.watermark_items:
-                self.preview_canvas.config(cursor="hand2")
-            else:
+            try:
+                closest_items = self.preview_canvas.find_closest(event.x, event.y)
+                if closest_items:
+                    closest_item = closest_items[0]
+                    if closest_item in self.watermark_items:
+                        self.preview_canvas.config(cursor="hand2")
+                    else:
+                        self.preview_canvas.config(cursor="")
+                else:
+                    self.preview_canvas.config(cursor="")
+            except (IndexError, tk.TclError):
+                # 如果画布上没有元素或发生其他错误，设置默认光标
                 self.preview_canvas.config(cursor="")
                 
     def update_watermark_position_from_drag(self, dx, dy):
@@ -1088,11 +1100,11 @@ class ModernPhotoWatermarkGUI:
                 scale_x = img.width / preview_img.width
                 scale_y = img.height / preview_img.height
                 
-                # 转换拖拽距离到原图坐标
-                real_dx = dx * scale_x
-                real_dy = dy * scale_y
+                # 转换拖拽距离到原图坐标（强制取反方向修正）
+                real_dx = -dx * scale_x
+                real_dy = -dy * scale_y
                 
-                # 更新偏移量
+                # 更新偏移量（直接加上增量）
                 current_x = self.watermark_config['offset_x'].get()
                 current_y = self.watermark_config['offset_y'].get()
                 
